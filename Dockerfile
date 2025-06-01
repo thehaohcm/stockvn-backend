@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 COPY . .
-RUN go build -v -o /run-app .
+RUN GOOS=linux GOARCH=amd64 go build -v -o /run-app .
 
 
 FROM debian:bookworm
