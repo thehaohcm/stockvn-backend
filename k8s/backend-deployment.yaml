@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: thehaohcm/stockvn-backend-api:0.0.4
+          ports:
+            - containerPort: 3000
+          env:
+          - name: DB_HOST
+            valueFrom:
+              secretKeyRef:
+                name: backend-secret
+                key: DB_HOST
+          - name: DB_USER
+            valueFrom:
+              secretKeyRef:
+                name: backend-secret
+                key: DB_USER
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: backend-secret
+                key: DB_PASSWORD
+          - name: DB_NAME
+            valueFrom:
+              secretKeyRef:
+                name: backend-secret
+                key: DB_NAME
+          - name: DB_PORT
+            valueFrom:
+              secretKeyRef:
+                name: backend-secret
+                key: DB_PORT
