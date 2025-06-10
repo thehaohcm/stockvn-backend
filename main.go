@@ -65,7 +65,67 @@ type UpdateSignalRequest struct {
 	BreakEvenPrice int    `json:"break_even_price"`
 }
 
-func getPotentialSymbols(w http.ResponseWriter, r *http.Request) {
+func getPotentialSymbolsHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := db.Ping()
+		if err != nil {
+			http.Error(w, "Failed to ping database", http.StatusInternalServerError)
+			log.Println("Failed to ping database:", err)
+			return
+		}
+
+		rows, err := db.Query("SELECT symbol, highest_price, lowest_price FROM symbols_watchlist")
+		if err != nil {
+			http.Error(w, "Failed to query database", http.StatusInternalServerError)
+			log.Println("Failed to query database:", err)
+			return
+		}
+		defer rows.Close()
+
+		var symbols []SymbolData
+		for rows.Next() {
+			var s SymbolData
+			if err := rows.Scan(&s.Symbol, &s.HighestPrice, &s.LowestPrice); err != nil {
+				http.Error(w, "Failed to scan row", http.StatusInternalServerError)
+				log.Println("Failed to scan row:", err)
+				return
+			}
+			symbols = append(symbols, s)
+		}
+
+		if err := rows.Err(); err != nil {
+			http.Error(w, "Error during row iteration", http.StatusInternalServerError)
+			log.Println("Error during row iteration:", err)
+			return
+		}
+
+		// Query to get the latest updated
+		row := db.QueryRow("SELECT MAX(updated_at) FROM symbols_watchlist LIMIT 1")
+		var latestUpdated time.Time
+		if err = row.Scan(&latestUpdated); err != nil {
+			http.Error(w, "Failed to scan row", http.StatusInternalServerError)
+			log.Println("Failed to scan row:", err)
+			return
+		}
+
+		response := SymbolDataResponse{
+			Data:          symbols,
+			LatestUpdated: latestUpdated,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		json.NewEncoder(w).Encode(response)
+	}
+}
+
+func healthCheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "OK")
+}
+
+func main() {
 	dbHost := os.Getenv("DB_HOST")
 	dbPort, _ := strconv.Atoi(os.Getenv("DB_PORT"))
 	dbUser := os.Getenv("DB_USER")
@@ -77,71 +137,11 @@ func getPotentialSymbols(w http.ResponseWriter, r *http.Request) {
 
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
-		http.Error(w, "Failed to connect to database", http.StatusInternalServerError)
-		log.Println("Failed to connect to database:", err)
-		return
+		log.Fatal("Failed to connect to database:", err)
 	}
 	defer db.Close()
 
-	err = db.Ping()
-	if err != nil {
-		http.Error(w, "Failed to ping database", http.StatusInternalServerError)
-		log.Println("Failed to ping database:", err)
-		return
-	}
-
-	rows, err := db.Query("SELECT symbol, highest_price, lowest_price FROM symbols_watchlist")
-	if err != nil {
-		http.Error(w, "Failed to query database", http.StatusInternalServerError)
-		log.Println("Failed to query database:", err)
-		return
-	}
-	defer rows.Close()
-
-	var symbols []SymbolData
-	for rows.Next() {
-		var s SymbolData
-		if err := rows.Scan(&s.Symbol, &s.HighestPrice, &s.LowestPrice); err != nil {
-			http.Error(w, "Failed to scan row", http.StatusInternalServerError)
-			log.Println("Failed to scan row:", err)
-			return
-		}
-		symbols = append(symbols, s)
-	}
-
-	if err := rows.Err(); err != nil {
-		http.Error(w, "Error during row iteration", http.StatusInternalServerError)
-		log.Println("Error during row iteration:", err)
-		return
-	}
-
-	// Query to get the latest updated
-	row := db.QueryRow("SELECT MAX(updated_at) FROM symbols_watchlist LIMIT 1")
-	var latestUpdated time.Time
-	if err = row.Scan(&latestUpdated); err != nil {
-		http.Error(w, "Failed to scan row", http.StatusInternalServerError)
-		log.Println("Failed to scan row:", err)
-		return
-	}
-
-	response := SymbolDataResponse{
-		Data:          symbols,
-		LatestUpdated: latestUpdated,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	json.NewEncoder(w).Encode(response)
-}
-
-func healthCheck(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, "OK")
-}
-
-func main() {
-	http.HandleFunc("/getPotentialSymbols", getPotentialSymbols)
+	http.HandleFunc("/getPotentialSymbols", getPotentialSymbolsHandler(db))
 	http.HandleFunc("/health", healthCheck)
 	fmt.Println("Server listening on :3000")
 	addr := net.JoinHostPort("::", "3000")
