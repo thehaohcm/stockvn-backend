@@ -1,6 +1,6 @@
 ARG TARGETARCH=amd64
 ARG GO_VERSION=1
-FROM golang:${GO_VERSION}-bookworm as builder
+FROM golang:${GO_VERSION}-bookworm AS builder
 
 WORKDIR /usr/src/app
 COPY go.mod go.sum ./
