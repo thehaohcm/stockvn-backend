@@ -114,11 +114,13 @@ func getPotentialSymbolsHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		json.NewEncoder(w).Encode(response)
 	}
 }
 
 func healthCheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, "OK")
 }
@@ -158,8 +160,8 @@ func main() {
 
 	// Create a new ServeMux and apply the CORS middleware
 	mux := http.NewServeMux()
-	mux.HandleFunc("/getPotentialSymbols", getPotentialSymbolsHandler(db))
-	mux.HandleFunc("/health", healthCheck)
+	mux.Handle("/getPotentialSymbols", corsMiddleware(http.HandlerFunc(getPotentialSymbolsHandler(db))))
+	mux.Handle("/health", corsMiddleware(http.HandlerFunc(healthCheck)))
 
 	fmt.Println("Server listening on :3000")
 	addr := net.JoinHostPort("::", "3000")
