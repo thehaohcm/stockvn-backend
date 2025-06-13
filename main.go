@@ -125,6 +125,23 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "OK")
 }
 
+// corsMiddleware adds CORS headers to responses
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Handle preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	dbHost := os.Getenv("DB_HOST")
 	dbPort, _ := strconv.Atoi(os.Getenv("DB_PORT"))
@@ -141,10 +158,16 @@ func main() {
 	}
 	defer db.Close()
 
-	http.HandleFunc("/getPotentialSymbols", getPotentialSymbolsHandler(db))
-	http.HandleFunc("/health", healthCheck)
+	// Create a new ServeMux and apply the CORS middleware
+	mux := http.NewServeMux()
+	mux.HandleFunc("/getPotentialSymbols", getPotentialSymbolsHandler(db))
+	mux.HandleFunc("/health", healthCheck)
+
 	fmt.Println("Server listening on :3000")
 	addr := net.JoinHostPort("::", "3000")
-	server := &http.Server{Addr: addr}
+	server := &http.Server{
+		Addr:    addr,
+		Handler: corsMiddleware(mux), // Apply the middleware here
+	}
 	log.Fatalln(server.ListenAndServe())
 }
