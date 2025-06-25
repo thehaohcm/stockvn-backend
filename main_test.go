@@ -93,3 +93,55 @@ func TestGetPotentialSymbols(t *testing.T) {
 		t.Errorf("there were unfulfilled expectations: %s", err)
 	}
 }
+
+func TestCorsMiddleware(t *testing.T) {
+	// Create a dummy handler to be wrapped by the middleware
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	// Create a new recorder to capture the response
+	rr := httptest.NewRecorder()
+
+	// Create a request for a GET method
+	req, err := http.NewRequest("GET", "/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Apply the middleware
+	handler := corsMiddleware(mockHandler)
+	handler.ServeHTTP(rr, req)
+
+	// Check CORS headers for a regular GET request
+	if rr.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Errorf("CORS middleware failed for GET: Access-Control-Allow-Origin header missing or incorrect")
+	}
+	if rr.Header().Get("Access-Control-Allow-Methods") != "GET, POST, PUT, DELETE, OPTIONS" {
+		t.Errorf("CORS middleware failed for GET: Access-Control-Allow-Methods header missing or incorrect")
+	}
+	if rr.Header().Get("Access-Control-Allow-Headers") != "Content-Type, Authorization" {
+		t.Errorf("CORS middleware failed for GET: Access-Control-Allow-Headers header missing or incorrect")
+	}
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code for GET: got %v want %v", status, http.StatusOK)
+	}
+
+	// Test preflight OPTIONS request
+	rr = httptest.NewRecorder() // Reset recorder
+	req, err = http.NewRequest("OPTIONS", "/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler.ServeHTTP(rr, req)
+
+	// Check status code for OPTIONS request
+	if status := rr.Code; status != http.StatusOK {
+		t.Errorf("handler returned wrong status code for OPTIONS: got %v want %v", status, http.StatusOK)
+	}
+	// For OPTIONS, only the CORS headers should be set, and no body from the mockHandler
+	if rr.Body.String() != "" {
+		t.Errorf("handler returned unexpected body for OPTIONS: got %v want empty", rr.Body.String())
+	}
+}
