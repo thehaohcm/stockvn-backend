@@ -1,13 +1,13 @@
 version: '3.8'
 services:
   ui:
-    image: ”thehaohcm/stockvn-frontend-ui:0.0.1-amd64"
+    image: "thehaohcm/stockvn-frontend-ui:0.0.1-amd64"
     ports:
       - "80:80"
     depends_on:
       - api
   api:
-    image: ”thehaohcm/stockvn-backend-api:0.0.1-amd64"
+    image: "thehaohcm/stockvn-backend-api:0.0.1-amd64"
     ports:
       - "3000:3000"
     depends_on:
@@ -16,6 +16,5 @@ services:
     image: "postgres:latest"
     volumes:
       - "./postgres_data:/var/lib/postgresql/data"
-  ports:
-    - "5432:5432"
-
+    ports:
+      - "5432:5432"
